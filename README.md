@@ -1,4 +1,4 @@
-# MPCA-Jackfruit ~ Smart Medicine Reminder Box 
+MPCA-Jackfruit ~ Smart Medicine Reminder Box 
 ---
 ## Abstract
 
