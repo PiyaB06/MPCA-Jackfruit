@@ -5,31 +5,32 @@
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 RTC_DS3231 rtc;
 
-#define MAX_ALARMS 3
+#define DAYS 7
+#define ALARMS_PER_DAY 3
 
-// PINS
-int buzzer = 8;
+//pins
+int buzzer = 8; //D8
 int led = 2;
-int btnMode = 7;
-int btnAction = 9;
+int btnMode = 7; //D7
+int btnAction = 9; //D9
 
-// ALARM DATA
-int med_hour[MAX_ALARMS] = {8, 14, 20};
-int med_min[MAX_ALARMS]  = {0, 0, 0};
-int med_day[MAX_ALARMS]  = {1, 1, 1};
+//data
+int med_hour[DAYS][ALARMS_PER_DAY] = {0};
+int med_min[DAYS][ALARMS_PER_DAY] = {0};
 
-// DAY NAMES
 const char* days[7] = {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
 
-// STATES
+// states
 bool alarmActive = false;
-bool alarmTriggered[MAX_ALARMS] = {false, false, false};
+bool alarmTriggered[DAYS][ALARMS_PER_DAY] = {false};
 bool settingMode = false;
 
+// Nav
+int currentDay = 0;
 int currentAlarm = 0;
 int settingField = 0;
 
-// BUTTON
+// Button
 unsigned long pressStart = 0;
 bool longPressHandled = false;
 
@@ -55,7 +56,7 @@ void loop() {
   delay(200);
 }
 
-// ---------------- BUTTON LOGIC ----------------
+//Buttons
 void handleButtons() {
   if (digitalRead(btnMode) == LOW) {
     if (pressStart == 0) pressStart = millis();
@@ -67,11 +68,7 @@ void handleButtons() {
   } else {
     if (pressStart != 0 && !longPressHandled) {
       if (settingMode) {
-        settingField++;
-        if (settingField > 2) {
-          settingField = 0;
-          currentAlarm = (currentAlarm + 1) % MAX_ALARMS;
-        }
+        settingField = (settingField + 1) % 4;
       }
     }
     pressStart = 0;
@@ -81,13 +78,18 @@ void handleButtons() {
   if (digitalRead(btnAction) == LOW) {
     if (settingMode) {
       if (settingField == 0)
-        med_hour[currentAlarm] = (med_hour[currentAlarm] + 1) % 24;
+        currentDay = (currentDay + 1) % 7;
 
       else if (settingField == 1)
-        med_min[currentAlarm] = (med_min[currentAlarm] + 5) % 60;
+        currentAlarm = (currentAlarm + 1) % ALARMS_PER_DAY;
 
       else if (settingField == 2)
-        med_day[currentAlarm] = (med_day[currentAlarm] + 1) % 7;
+        med_hour[currentDay][currentAlarm] =
+          (med_hour[currentDay][currentAlarm] + 1) % 24;
+
+      else if (settingField == 3)
+        med_min[currentDay][currentAlarm] =
+          (med_min[currentDay][currentAlarm] + 5) % 60;
 
       delay(200);
     }
@@ -103,23 +105,22 @@ void handleButtons() {
   }
 }
 
-// ---------------- ALARM LOGIC ----------------
+// Alarm
 void handleAlarm(DateTime now) {
   int today = now.dayOfTheWeek();
 
-  for (int i = 0; i < MAX_ALARMS; i++) {
+  for (int a = 0; a < ALARMS_PER_DAY; a++) {
     if (!settingMode) {
-      if (now.hour() == med_hour[i] &&
-          now.minute() == med_min[i] &&
-          today == med_day[i] &&
-          !alarmTriggered[i]) {
+      if (now.hour() == med_hour[today][a] &&
+          now.minute() == med_min[today][a] &&
+          !alarmTriggered[today][a]) {
 
         alarmActive = true;
-        alarmTriggered[i] = true;
+        alarmTriggered[today][a] = true;
       }
 
-      if (now.minute() != med_min[i]) {
-        alarmTriggered[i] = false;
+      if (now.minute() != med_min[today][a]) {
+        alarmTriggered[today][a] = false;
       }
     }
   }
@@ -130,7 +131,7 @@ void handleAlarm(DateTime now) {
   }
 }
 
-// ---------------- DISPLAY ----------------
+// Display
 void display(DateTime now) {
   lcd.setCursor(0,0);
 
@@ -147,48 +148,52 @@ void display(DateTime now) {
     if (alarmActive) {
       lcd.print("TAKE MEDICINE!");
     } else {
-      lcd.print("A");
+      lcd.print(days[currentDay]);
+      lcd.print(" A");
       lcd.print(currentAlarm+1);
       lcd.print(" ");
 
-      print2(med_hour[currentAlarm]);
+      print2(med_hour[currentDay][currentAlarm]);
       lcd.print(":");
-      print2(med_min[currentAlarm]);
-
-      lcd.print(" ");
-      lcd.print(days[med_day[currentAlarm]]);
-      lcd.print(" ");
+      print2(med_min[currentDay][currentAlarm]);
     }
-  } 
+  }
   else {
-    lcd.print("Set A");
+    lcd.print("Set ");
+    lcd.print(days[currentDay]);
+    lcd.print(" A");
     lcd.print(currentAlarm+1);
-    lcd.print("      ");
 
     lcd.setCursor(0,1);
 
-    if (settingField == 0) lcd.print("H:");
-    else lcd.print("  ");
+    if (settingField == 0) lcd.print("*");
+    else lcd.print(" ");
 
-    print2(med_hour[currentAlarm]);
-    lcd.print(":");
+    lcd.print(days[currentDay]);
+    lcd.print(" ");
 
-    if (settingField == 1) lcd.print("M:");
-    else lcd.print("  ");
+    if (settingField == 1) lcd.print("*");
+    else lcd.print(" ");
 
-    print2(med_min[currentAlarm]);
+    lcd.print("A");
+    lcd.print(currentAlarm+1);
 
     lcd.print(" ");
 
     if (settingField == 2) lcd.print("*");
     else lcd.print(" ");
 
-    lcd.print(days[med_day[currentAlarm]]);
-    lcd.print(" ");
+    print2(med_hour[currentDay][currentAlarm]);
+    lcd.print(":");
+
+    if (settingField == 3) lcd.print("*");
+    else lcd.print(" ");
+
+    print2(med_min[currentDay][currentAlarm]);
   }
 }
 
-// ---------------- HELPER ----------------
+//Helper
 void print2(int val) {
   if (val < 10) lcd.print("0");
   lcd.print(val);
