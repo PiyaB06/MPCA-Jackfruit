@@ -6,6 +6,7 @@ This device reminds you to have your medications on time. It allows you to set m
 
 
 ## Hardware Components Used:
+- Arduino Uno
 - Breadboard
 - LCD
 - RTC Module
